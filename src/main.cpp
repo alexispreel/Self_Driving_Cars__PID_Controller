@@ -83,7 +83,6 @@ int main()
     std::cin >> Kp_init;
     std::cin >> Ki_init;
     std::cin >> Kd_init;
-    //pid.Init({0.134611, 0.000270736, 3.05349});
     //pid.Init({0.1, 0.0002, 3.0});
     //pid.Init({0.1331, 0.000201008, 3.0});
     pid.Init({Kp_init, Ki_init, Kd_init});
