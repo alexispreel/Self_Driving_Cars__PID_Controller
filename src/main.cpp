@@ -165,14 +165,9 @@ int main()
                 if (event == "telemetry") {
                     // j[1] is the data JSON object
                     double cte = std::stod(j[1]["cte"].get<std::string>());
-                    //double speed = std::stod(j[1]["speed"].get<std::string>());
-                    //double angle = std::stod(j[1]["steering_angle"].get<std::string>());
                     double steer_value;
                     double throt_value;
-                    //double sum_twd_dK = std::accumulate(twd_dK.begin(), twd_dK.end(), 0.0);
                     double dot_twd_dK;
-                    //double twd_gain;
-                    //std::cout << "twd_gain: " << twd_gain << " = " << dot_twd_dK_0 << " / " << dot_twd_dK << std::endl;
                     bool adjust_prm;
                     double twd_dK_prv;
                     
@@ -194,7 +189,7 @@ int main()
                     if (steer_value > 1) steer_value = 1;
                     if (steer_value < -1) steer_value = -1;
                     
-                    //
+                    // Initializing speed to twiddle value
                     if (twiddle && best_error == 0.0) {
                         throt_value = throt_value_twd;
                     }
@@ -202,19 +197,15 @@ int main()
                     // Accumulating squared error for twiddle
                     if (twiddle) {cur_error += pow(cte, 2);}
                     
-                    // Twiddle checkpoint
+                    // Twiddle checkpoint, every 15 web socket event
                     if (twiddle && (twd_gain < twd_tolerance) && (twd_run % twd_run_itv == 0)) {
                         std::cout << "****** twiddle checkpoint "<< "@" << twd_run << " : twd_check = " << twd_check << " : twd_gain = " << twd_gain << std::endl;
                         
-                        //
-                        //dot_twd_dK = std::inner_product(twd_dK.begin(), twd_dK.end(), twd_weights.begin(), 0.0) / twd_dK.size();
-                        //twd_gain = 1 / dot_twd_dK;
-                        
-                        //
+                        // Switching parameter, every 6*15=90 web socket event
                         if (twd_run % (twd_prm_itv * twd_run_itv) == 0) {
                             std::cout << "************************************" << std::endl;
                             
-                            //
+                            // Finishing processing current parameter before switching
                             std::cout << "adjust_prm = " << adjust_prm << std::endl;
                             if (adjust_prm) {
                                 // Adjusting parameter
@@ -222,10 +213,6 @@ int main()
                                 std::cout << " -> adjusting pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                                 
                             }
-                            
-                            // Refining variation factor
-                            // not sure about that...
-                            //twd_ddK[twd_index] *= 0.9;
                             
                             // Switching to next parameter
                             twd_index = (twd_index + 1) % (twd_dK.size());
@@ -235,10 +222,10 @@ int main()
                             twd_check_d = 1;
                         }
                         
-                        // 
+                        // Incrementing twiddle check index
                         twd_check += twd_check_d;
                         
-                        // 
+                        // Initializing flag for parameter adjustement
                         adjust_prm = false;
                         
                         // 
@@ -253,11 +240,9 @@ int main()
                             pid.K[twd_index] += twd_dK[twd_index];
                             std::cout << "adjusting pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                             
-                            // 
+                            // Sending data to #2 for next twiddle checkpoint
                             twd_check_d = 2;
                             
-                            // Let run...
-                            //cur_error = 0.0;
                         }
                         
                         //
@@ -268,11 +253,9 @@ int main()
                             pid.K[twd_index] += twd_dK[twd_index];
                             std::cout << " -> adjusting pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                             
-                            //
+                            // Sending data to #2 for next twiddle checkpoint
                             twd_check_d = 1;
                             
-                            // Let run...
-                            //cur_error = 0.0;
                         }
                         
                         //
@@ -281,15 +264,15 @@ int main()
                             std::cout << "cur_error = " << cur_error << std::endl;
                             std::cout << "best_error = " << best_error << std::endl;
                             if (cur_error < best_error) {
-                                //
+                                // Updating best error
                                 best_error = cur_error;
                                 
-                                //
+                                // Narrowing down delta
                                 twd_dK_prv = twd_dK[twd_index];
                                 twd_dK[twd_index] *= twd_ddK[twd_index];
                                 std::cout << "   -> param up: twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << " = " << twd_dK_prv << " * (" << twd_ddK[twd_index] << ")" << std::endl;
                                 
-                                //
+                                // Recomputing gain
                                 dot_twd_dK = std::inner_product(twd_dK.begin(), twd_dK.end(), twd_weights.begin(), 0.0) / twd_dK.size();
                                 twd_gain = 1 / dot_twd_dK;
                                 if (twd_gain < 1) {
@@ -300,8 +283,7 @@ int main()
                                 pid.K[twd_index] += twd_dK[twd_index];
                                 std::cout << "   -> adjusting pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                                 
-                                //
-                                //twd_check -= 1;
+                                // Sending data to #2 for next twiddle checkpoint
                                 twd_check_d = 0;
                             }
                             else {
@@ -309,13 +291,13 @@ int main()
                                 pid.K[twd_index] -= 2 * twd_dK[twd_index];
                                 std::cout << "   -> reverting : pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                                 
-                                //
+                                // Sending data to #3 for next twiddle checkpoint
                                 twd_check_d = 1;
+                                
+                                // Opening flag for parameter adjustement
                                 adjust_prm = true;
                             }
                             
-                            // Let run...
-                            //cur_error = 0.0;
                         }
                         
                         //
@@ -326,64 +308,65 @@ int main()
                             
                             //
                             if (cur_error < best_error) {
-                                //
+                                // Updating best error
                                 best_error = cur_error;
                                 
-                                // 
+                                // Narrowing down delta
                                 twd_dK_prv = twd_dK[twd_index];
                                 twd_dK[twd_index] *= twd_ddK[twd_index];
                                 std::cout << "     -> param up: twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << " = " << twd_dK_prv << " * (" << twd_ddK[twd_index] << ")" << std::endl;
                                 
-                                //
+                                // Recomputing gain
                                 dot_twd_dK = std::inner_product(twd_dK.begin(), twd_dK.end(), twd_weights.begin(), 0.0) / twd_dK.size();
                                 twd_gain = 1 / dot_twd_dK;
                                 
-                                //
+                                // Opening flag for parameter adjustement
                                 adjust_prm = true;
                             }
                             else {
-                                //
+                                // Adjusting parameter
                                 pid.K[twd_index] += twd_dK[twd_index];
                                 std::cout << "     -> adjusting pid.K[" << twd_index << "] = " << pid.K[twd_index] << " with " << "twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << std::endl;
                                 
-                                //
+                                // Decreasing delta
                                 twd_dK_prv = twd_dK[twd_index];
                                 twd_dK[twd_index] *= (2 - twd_ddK[twd_index]);
                                 std::cout << "     -> param down: twd_dK[" << twd_index << "] = " << twd_dK[twd_index] << " = " << twd_dK_prv << " * (" << 2 - twd_ddK[twd_index] << ")" << std::endl;
                                 
-                                //
+                                // Recomputing gain
                                 dot_twd_dK = std::inner_product(twd_dK.begin(), twd_dK.end(), twd_weights.begin(), 0.0) / twd_dK.size();
                                 twd_gain = 1 / dot_twd_dK;
                             }
                             
-                            // 
-                            //cur_error = 0.0;
+                            // Sending data to #1 for next checkpoint
                             twd_check = 0;
                             twd_check_d = 1;
                         }
                         
-                        //
+                        // Reinitializing cumulated squared error for next round
                         cur_error = 0.0;
                         
-                        //
+                        // Initializing speed
                         if (twd_check <= 0) {
                             throt_value = throt_value_twd;
                         }
                         std::cout << twd_gain << " vs. " << twd_gain_prv << std::endl;
                         
+                        // If gain over 1.5 and increasing, speeding up a bit
                         if (twd_gain > 1.5 && twd_gain != twd_gain_prv) {
                             if (twd_gain > twd_gain_prv) {
-                                //
-                                throt_value *= 1.1;
+                                // Increasing twiddle speed
+                                throt_value *= 1.001;
                                 std::cout << "increasing speed at " << throt_value << std::endl;
                             }
                             else {
-                                //
-                                throt_value *= 0.9;
+                                // Decreasing twiddle speed
+                                throt_value *= 0.999;
                                 //throt_value *= 0.952;
                                 std::cout << "decreasing speed at " << throt_value << std::endl;
                             }
                             
+                            // Keeping throt_value in [min,max]
                             if (throt_value < throt_value_twd) {
                                 throt_value = throt_value_twd;
                             }
@@ -392,11 +375,12 @@ int main()
                             }
                         }
                         
-                        //
+                        // Resetting prior gain
                         twd_gain_prv = twd_gain;
                         
                     }
                     
+                    // If normal mode (no twiddle) or optimal parameters found
                     else {
                         if (twiddle) {
                             if (twd_gain >= twd_tolerance) {
